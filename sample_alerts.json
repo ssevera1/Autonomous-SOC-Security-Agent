@@ -1,0 +1,58 @@
+[
+  {
+    "id": "ALERT-001",
+    "timestamp": "2026-02-16T08:23:11Z",
+    "severity": "HIGH",
+    "source": "IDS",
+    "message": "Suspicious login from IP 192.168.1.50 - multiple failed attempts detected"
+  },
+  {
+    "id": "ALERT-002",
+    "timestamp": "2026-02-16T08:25:03Z",
+    "severity": "MEDIUM",
+    "source": "Firewall",
+    "message": "Port scan detected from IP 10.0.0.77 targeting ports 22, 80, 443, 8080"
+  },
+  {
+    "id": "ALERT-003",
+    "timestamp": "2026-02-16T08:30:45Z",
+    "severity": "LOW",
+    "source": "Web-Proxy",
+    "message": "Routine traffic from IP 172.16.0.12 to external CDN"
+  },
+  {
+    "id": "ALERT-004",
+    "timestamp": "2026-02-16T09:01:22Z",
+    "severity": "CRITICAL",
+    "source": "EDR",
+    "message": "Possible C2 beacon detected from IP 203.0.113.42 every 60s interval"
+  },
+  {
+    "id": "ALERT-005",
+    "timestamp": "2026-02-16T09:15:07Z",
+    "severity": "HIGH",
+    "source": "SIEM",
+    "message": "Brute force SSH attack from IP 198.51.100.23 - 500 attempts in 2 minutes"
+  },
+  {
+    "id": "ALERT-006",
+    "timestamp": "2026-02-16T09:22:31Z",
+    "severity": "LOW",
+    "source": "DNS",
+    "message": "Standard DNS resolution from IP 172.16.0.5 - no anomalies"
+  },
+  {
+    "id": "ALERT-007",
+    "timestamp": "2026-02-16T09:45:58Z",
+    "severity": "HIGH",
+    "source": "IDS",
+    "message": "SQL injection attempt from IP 45.33.32.156 on /api/login endpoint"
+  },
+  {
+    "id": "ALERT-008",
+    "timestamp": "2026-02-16T10:03:14Z",
+    "severity": "MEDIUM",
+    "source": "Firewall",
+    "message": "Outbound connection to known malware domain from IP 192.168.5.101"
+  }
+]

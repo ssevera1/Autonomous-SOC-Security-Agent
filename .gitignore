@@ -1,0 +1,6 @@
+CLAUDE.md
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+threat_hunter.log
