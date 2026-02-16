@@ -33,7 +33,7 @@ class ThreatHunterAgent:
             ip = match.group()
             print(f"  [EXTRACT]  Found IP: {ip}")
             return ip
-        print("  [EXTRACT]  No IP address found — skipping alert.")
+        print("  [EXTRACT]  No IP address found -- skipping alert.")
         return None
 
     def _step_check_reputation(self, ip: str) -> dict:
@@ -42,16 +42,16 @@ class ThreatHunterAgent:
         result = virustotal_ip_check(ip)
         print(f"  [ANALYZE]  Verdict: {result.verdict.value} (score: {result.score}/100)")
         print(f"             {result.details}")
-        return result.model_dump()
+        return result.model_dump(mode="json")
 
     def _step_remediate(self, ip: str, verdict: str) -> str:
         """Step 3: If malicious, request human approval before blocking."""
         if verdict == Verdict.MALICIOUS.value:
-            print(f"  [ACTION]   Threat confirmed — remediation required.")
+            print(f"  [ACTION]   Threat confirmed -- remediation required.")
             blocked = request_remediation(ip)
             return "BLOCKED" if blocked else "DECLINED"
         else:
-            print(f"  [ACTION]   No threat detected — no action needed.")
+            print(f"  [ACTION]   No threat detected -- no action needed.")
             return "NO_ACTION"
 
     # ----- main loop -----
@@ -60,7 +60,7 @@ class ThreatHunterAgent:
         """Execute the full reasoning loop across all ingested alerts."""
         print()
         print(_SEPARATOR)
-        print("  AUTONOMOUS THREAT HUNTER — Starting Analysis")
+        print("  AUTONOMOUS THREAT HUNTER -- Starting Analysis")
         print(_SEPARATOR)
 
         alerts = self.ingestor.ingest()
@@ -72,17 +72,17 @@ class ThreatHunterAgent:
             print(f"  {alert.message}")
             print("-" * 60)
 
-            # Step 1 — Extract
+            # Step 1 - Extract
             ip = self._step_extract_ip(alert)
             if ip is None:
                 self.results.append({"alert_id": alert.id, "action": "SKIPPED"})
                 print()
                 continue
 
-            # Step 2 — Analyze
+            # Step 2 - Analyze
             reputation = self._step_check_reputation(ip)
 
-            # Step 3 — Act
+            # Step 3 - Act
             action = self._step_remediate(ip, reputation["verdict"])
 
             self.results.append({

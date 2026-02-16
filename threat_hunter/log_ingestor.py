@@ -28,7 +28,7 @@ class LogIngestor:
                 alert = Alert.model_validate(entry)
                 alerts.append(alert)
             except Exception as exc:
-                logger.warning("Skipping malformed alert entry: %s — %s", entry, exc)
+                logger.warning("Skipping malformed alert entry: %s -- %s", entry, exc)
 
         logger.info("Ingested %d alerts", len(alerts))
         return alerts

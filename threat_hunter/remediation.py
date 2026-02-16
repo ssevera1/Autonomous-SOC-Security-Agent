@@ -17,7 +17,7 @@ def request_remediation(ip: str) -> bool:
     Returns True if the IP was blocked, False if the analyst declined.
     """
     print()
-    print(f"  ⚠  Requesting human approval to block IP {ip}...")
+    print(f"  [!!] Requesting human approval to block IP {ip}...")
     print(f"     This action will add {ip} to the firewall deny list.")
     print()
 
@@ -25,8 +25,8 @@ def request_remediation(ip: str) -> bool:
         try:
             response = input("  >> Do you approve blocking this IP? (Y/N): ").strip().upper()
         except (EOFError, KeyboardInterrupt):
-            print("\n  [SKIPPED] No input received — defaulting to deny.")
-            logger.info("No input for IP %s — auto-denied", ip)
+            print("\n  [SKIPPED] No input received -- defaulting to deny.")
+            logger.info("No input for IP %s -- auto-denied", ip)
             return False
         if response == "Y":
             block_ip(ip)

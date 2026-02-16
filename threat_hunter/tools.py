@@ -26,9 +26,9 @@ def virustotal_ip_check(ip: str) -> ReputationResult:
     if ip in _KNOWN_MALICIOUS:
         score = 85 + (int(hashlib.md5(ip.encode()).hexdigest()[:2], 16) % 16)
         verdict = Verdict.MALICIOUS
-        details = f"IP {ip} flagged by multiple threat feeds — high confidence malicious"
+        details = f"IP {ip} flagged by multiple threat feeds -- high confidence malicious"
     else:
-        # Deterministic score from hash: 0-39 range → always Clean
+        # Deterministic score from hash: 0-39 range -> always Clean
         score = int(hashlib.md5(ip.encode()).hexdigest()[:2], 16) % 40
         verdict = Verdict.CLEAN
         details = f"IP {ip} has no significant detections"
