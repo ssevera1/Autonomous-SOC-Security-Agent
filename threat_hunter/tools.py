@@ -28,10 +28,14 @@ def virustotal_ip_check(ip: str) -> ReputationResult:
         verdict = Verdict.MALICIOUS
         details = f"IP {ip} flagged by multiple threat feeds -- high confidence malicious"
     else:
-        # Deterministic score from hash: 0-39 range -> always Clean
-        score = int(hashlib.md5(ip.encode()).hexdigest()[:2], 16) % 40
-        verdict = Verdict.CLEAN
-        details = f"IP {ip} has no significant detections"
+        # Deterministic score from hash: 0-84 range
+        score = int(hashlib.md5(ip.encode()).hexdigest()[:2], 16) % 85
+        if score >= 50:
+            verdict = Verdict.SUSPICIOUS
+            details = f"IP {ip} has low-confidence detections -- further review recommended"
+        else:
+            verdict = Verdict.CLEAN
+            details = f"IP {ip} has no significant detections"
 
     result = ReputationResult(ip=ip, score=score, verdict=verdict, details=details)
     logger.info("[VirusTotal API] Result: %s (score=%d)", verdict.value, score)
