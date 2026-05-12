@@ -29,16 +29,19 @@ class ThreatHunterAgent:
     # ----- reasoning steps -----
 
     def _step_extract_ip(self, alert: Alert) -> str | None:
-        """Step 1: Extract and validate the first IP address from the alert message."""
+        """Step 1: Extract and validate the first public IP address from the alert message."""
         for match in _IP_PATTERN.finditer(alert.message):
             candidate = match.group()
             try:
-                ipaddress.ip_address(candidate)
-                print(f"  [EXTRACT]  Found IP: {candidate}")
-                return candidate
+                addr = ipaddress.ip_address(candidate)
             except ValueError:
                 continue
-        print("  [EXTRACT]  No valid IP address found -- skipping alert.")
+            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+                print(f"  [EXTRACT]  Skipping non-public IP: {candidate}")
+                continue
+            print(f"  [EXTRACT]  Found IP: {candidate}")
+            return candidate
+        print("  [EXTRACT]  No valid public IP address found -- skipping alert.")
         return None
 
     def _step_check_reputation(self, ip: str) -> ReputationResult:

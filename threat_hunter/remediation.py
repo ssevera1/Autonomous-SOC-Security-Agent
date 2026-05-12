@@ -21,7 +21,8 @@ def request_remediation(ip: str) -> bool:
     print(f"     This action will add {ip} to the firewall deny list.")
     print()
 
-    while True:
+    _MAX_ATTEMPTS = 3
+    for attempt in range(_MAX_ATTEMPTS):
         try:
             response = input("  >> Do you approve blocking this IP? (Y/N): ").strip().upper()
         except (EOFError, KeyboardInterrupt):
@@ -36,4 +37,10 @@ def request_remediation(ip: str) -> bool:
             logger.info("Analyst declined to block IP: %s", ip)
             return False
         else:
-            print("     Please enter Y or N.")
+            remaining = _MAX_ATTEMPTS - attempt - 1
+            if remaining:
+                print(f"     Please enter Y or N. ({remaining} attempt(s) remaining)")
+            else:
+                print("  [SKIPPED] Too many invalid responses -- defaulting to deny.")
+                logger.info("Too many invalid responses for IP %s -- auto-denied", ip)
+    return False

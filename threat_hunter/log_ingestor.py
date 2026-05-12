@@ -20,7 +20,13 @@ class LogIngestor:
     def ingest(self) -> list[Alert]:
         """Parse the JSON log file and return a list of validated alerts."""
         logger.info("Ingesting alerts from %s", self.filepath)
-        raw = json.loads(self.filepath.read_text(encoding="utf-8"))
+        try:
+            raw = json.loads(self.filepath.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSON in log file {self.filepath}: {exc}") from exc
+
+        if not isinstance(raw, list):
+            raise ValueError(f"Expected a JSON array in {self.filepath}, got {type(raw).__name__}")
 
         alerts: list[Alert] = []
         for entry in raw:

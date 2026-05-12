@@ -4,7 +4,6 @@
 import argparse
 import logging
 import sys
-from pathlib import Path
 
 from threat_hunter.agent import ThreatHunterAgent
 from threat_hunter.models import Severity
@@ -33,11 +32,11 @@ def main() -> None:
         handlers=handlers,
     )
 
-    if not Path(args.log_file).exists():
-        print(f"Error: log file '{args.log_file}' not found.")
+    try:
+        agent = ThreatHunterAgent(args.log_file, min_severity=Severity(args.min_severity))
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"Error: {exc}")
         sys.exit(1)
-
-    agent = ThreatHunterAgent(args.log_file, min_severity=Severity(args.min_severity))
     agent.run()
 
 
