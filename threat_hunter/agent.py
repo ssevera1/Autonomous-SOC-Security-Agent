@@ -77,6 +77,11 @@ class ThreatHunterAgent:
         print(_SEPARATOR)
 
         alerts = self.ingestor.ingest()
+        if not alerts:
+            print("\n  No alerts to process.\n")
+            logger.info("No alerts ingested from log file")
+            return []
+
         print(f"\n  Loaded {len(alerts)} alerts. Beginning reasoning loop...\n")
 
         for alert in alerts:
@@ -123,15 +128,17 @@ class ThreatHunterAgent:
         print("  SUMMARY")
         print(_SEPARATOR)
         print(f"  {'Alert':<12} {'Severity':<10} {'IP':<18} {'Verdict':<12} {'Score':<8} {'Action'}")
-        print(f"  {'-'*10:<12} {'-'*8:<10} {'-'*16:<18} {'-'*10:<12} {'-'*6:<8} {'-'*10}")
-        for r in self.results:
-            print(
-                f"  {r.alert_id:<12} "
-                f"{r.severity.value:<10} "
-                f"{r.ip or 'N/A':<18} "
-                f"{r.verdict.value if r.verdict else 'N/A':<12} "
-                f"{str(r.score) if r.score is not None else '-':<8} "
-                f"{r.action}"
-            )
+        print(f"  {'-'*10:<12} {'-'*8:<10} {'-'*16:<18} {'-'*10:<12} {'-'*6:<8} {'-'*8}")
+        for result in self.results:
+            ip_str = result.ip or "(none)"
+            verdict_str = result.verdict.value if result.verdict else "(none)"
+            score_str = str(result.score) if result.score is not None else "(none)"
+            print(f"  {result.alert_id:<12} {result.severity.value:<10} {ip_str:<18} {verdict_str:<12} {score_str:<8} {result.action}")
+        print(_SEPARATOR)
+        print(f"  Total alerts processed: {len(self.results)}")
+        blocked = sum(1 for r in self.results if r.action == "BLOCKED")
+        flagged = sum(1 for r in self.results if r.action == "FLAGGED")
+        declined = sum(1 for r in self.results if r.action == "DECLINED")
+        print(f"  Blocked: {blocked}  |  Flagged: {flagged}  |  Declined: {declined}")
         print(_SEPARATOR)
         print()
