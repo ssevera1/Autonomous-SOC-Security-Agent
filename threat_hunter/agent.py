@@ -40,13 +40,16 @@ class ThreatHunterAgent:
                 print(f"  [EXTRACT]  Skipping non-public IP: {candidate}")
                 continue
             print(f"  [EXTRACT]  Found IP: {candidate}")
+            logger.debug("Extracted IP %s from alert %s", candidate, alert.id)
             return candidate
         print("  [EXTRACT]  No valid public IP address found -- skipping alert.")
+        logger.debug("No valid public IP found in alert %s message: %s", alert.id, alert.message)
         return None
 
     def _step_check_reputation(self, ip: str) -> ReputationResult:
         """Step 2: Check IP reputation via threat intelligence."""
         print(f"  [DECIDE]   Checking IP reputation via VirusTotal...")
+        logger.info("Checking reputation for IP: %s", ip)
         result = virustotal_ip_check(ip)
         print(f"  [ANALYZE]  Verdict: {result.verdict.value} (score: {result.score}/100)")
         print(f"             {result.details}")
@@ -56,13 +59,16 @@ class ThreatHunterAgent:
         """Step 3: Take action based on verdict, requesting human approval for destructive actions."""
         if verdict == Verdict.MALICIOUS:
             print(f"  [ACTION]   Threat confirmed -- remediation required.")
+            logger.warning("Malicious verdict for IP %s -- requesting remediation", ip)
             blocked = request_remediation(ip)
             return "BLOCKED" if blocked else "DECLINED"
         elif verdict == Verdict.SUSPICIOUS:
             print(f"  [ACTION]   Suspicious activity -- flagged for analyst review.")
+            logger.warning("Suspicious verdict for IP %s -- flagged for review", ip)
             return "FLAGGED"
         else:
             print(f"  [ACTION]   No threat detected -- no action needed.")
+            logger.info("Clean verdict for IP %s -- no action", ip)
             return "NO_ACTION"
 
     # ----- main loop -----
@@ -79,6 +85,9 @@ class ThreatHunterAgent:
         alerts = self.ingestor.ingest()
         print(f"\n  Loaded {len(alerts)} alerts. Beginning reasoning loop...\n")
 
+        if len(alerts) == 0:
+            logger.warning("No alerts to process")
+
         for alert in alerts:
             print(_SEPARATOR)
             print(f"  ALERT {alert.id}  |  {alert.severity.value}  |  {alert.source}")
@@ -87,6 +96,7 @@ class ThreatHunterAgent:
 
             if _SEVERITY_ORDER[alert.severity] < _SEVERITY_ORDER[self.min_severity]:
                 print(f"  [SKIP]     Severity below {self.min_severity.value} threshold.")
+                logger.info("Skipped alert %s due to severity threshold", alert.id)
                 self.results.append(AnalysisResult(alert_id=alert.id, severity=alert.severity, action="SKIPPED"))
                 print()
                 continue
@@ -123,15 +133,11 @@ class ThreatHunterAgent:
         print("  SUMMARY")
         print(_SEPARATOR)
         print(f"  {'Alert':<12} {'Severity':<10} {'IP':<18} {'Verdict':<12} {'Score':<8} {'Action'}")
-        print(f"  {'-'*10:<12} {'-'*8:<10} {'-'*16:<18} {'-'*10:<12} {'-'*6:<8} {'-'*10}")
-        for r in self.results:
-            print(
-                f"  {r.alert_id:<12} "
-                f"{r.severity.value:<10} "
-                f"{r.ip or 'N/A':<18} "
-                f"{r.verdict.value if r.verdict else 'N/A':<12} "
-                f"{str(r.score) if r.score is not None else '-':<8} "
-                f"{r.action}"
-            )
+        print(f"  {'-'*10:<12} {'-'*8:<10} {'-'*16:<18} {'-'*10:<12} {'-'*6:<8} {'-'*12}")
+        for result in self.results:
+            ip_str = result.ip or "N/A"
+            verdict_str = result.verdict.value if result.verdict else "N/A"
+            score_str = str(result.score) if result.score is not None else "N/A"
+            print(f"  {result.alert_id:<12} {result.severity.value:<10} {ip_str:<18} {verdict_str:<12} {score_str:<8} {result.action}")
         print(_SEPARATOR)
-        print()
+        logger.info("Analysis complete: %d alerts processed", len(self.results))
