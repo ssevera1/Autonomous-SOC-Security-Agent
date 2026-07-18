@@ -79,6 +79,11 @@ class ThreatHunterAgent:
         alerts = self.ingestor.ingest()
         print(f"\n  Loaded {len(alerts)} alerts. Beginning reasoning loop...\n")
 
+        if len(alerts) == 0:
+            logger.warning("No alerts to process")
+            self._print_summary()
+            return self.results
+
         for alert in alerts:
             print(_SEPARATOR)
             print(f"  ALERT {alert.id}  |  {alert.severity.value}  |  {alert.source}")
@@ -122,16 +127,17 @@ class ThreatHunterAgent:
         print(_SEPARATOR)
         print("  SUMMARY")
         print(_SEPARATOR)
+        if not self.results:
+            print("  No results to display.")
+            print(_SEPARATOR)
+            print()
+            return
         print(f"  {'Alert':<12} {'Severity':<10} {'IP':<18} {'Verdict':<12} {'Score':<8} {'Action'}")
         print(f"  {'-'*10:<12} {'-'*8:<10} {'-'*16:<18} {'-'*10:<12} {'-'*6:<8} {'-'*10}")
-        for r in self.results:
-            print(
-                f"  {r.alert_id:<12} "
-                f"{r.severity.value:<10} "
-                f"{r.ip or 'N/A':<18} "
-                f"{r.verdict.value if r.verdict else 'N/A':<12} "
-                f"{str(r.score) if r.score is not None else '-':<8} "
-                f"{r.action}"
-            )
+        for res in self.results:
+            ip_str = res.ip or "(none)"
+            verdict_str = res.verdict.value if res.verdict else "—"
+            score_str = str(res.score) if res.score is not None else "—"
+            print(f"  {res.alert_id:<12} {res.severity.value:<10} {ip_str:<18} {verdict_str:<12} {score_str:<8} {res.action}")
         print(_SEPARATOR)
         print()
