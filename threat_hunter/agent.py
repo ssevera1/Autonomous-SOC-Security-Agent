@@ -35,13 +35,17 @@ class ThreatHunterAgent:
             try:
                 addr = ipaddress.ip_address(candidate)
             except ValueError:
+                logger.debug("Rejected invalid IP candidate: %s", candidate)
                 continue
             if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
                 print(f"  [EXTRACT]  Skipping non-public IP: {candidate}")
+                logger.debug("Skipped non-public IP %s for alert %s", candidate, alert.id)
                 continue
             print(f"  [EXTRACT]  Found IP: {candidate}")
+            logger.info("Extracted IP %s from alert %s", candidate, alert.id)
             return candidate
         print("  [EXTRACT]  No valid public IP address found -- skipping alert.")
+        logger.warning("No valid public IP found in alert %s: %s", alert.id, alert.message)
         return None
 
     def _step_check_reputation(self, ip: str) -> ReputationResult:
@@ -77,6 +81,12 @@ class ThreatHunterAgent:
         print(_SEPARATOR)
 
         alerts = self.ingestor.ingest()
+        if not alerts:
+            print("  No alerts to process.")
+            logger.info("Ingest returned empty alert list")
+            print(_SEPARATOR)
+            print()
+            return []
         print(f"\n  Loaded {len(alerts)} alerts. Beginning reasoning loop...\n")
 
         for alert in alerts:
@@ -87,6 +97,7 @@ class ThreatHunterAgent:
 
             if _SEVERITY_ORDER[alert.severity] < _SEVERITY_ORDER[self.min_severity]:
                 print(f"  [SKIP]     Severity below {self.min_severity.value} threshold.")
+                logger.info("Skipped alert %s (severity %s below threshold)", alert.id, alert.severity.value)
                 self.results.append(AnalysisResult(alert_id=alert.id, severity=alert.severity, action="SKIPPED"))
                 print()
                 continue
@@ -103,6 +114,10 @@ class ThreatHunterAgent:
 
             # Step 3 - Act
             action = self._step_remediate(ip, reputation.verdict)
+            logger.info(
+                "Processed alert %s: IP=%s verdict=%s action=%s",
+                alert.id, ip, reputation.verdict.value, action
+            )
 
             self.results.append(AnalysisResult(
                 alert_id=alert.id,
@@ -124,14 +139,11 @@ class ThreatHunterAgent:
         print(_SEPARATOR)
         print(f"  {'Alert':<12} {'Severity':<10} {'IP':<18} {'Verdict':<12} {'Score':<8} {'Action'}")
         print(f"  {'-'*10:<12} {'-'*8:<10} {'-'*16:<18} {'-'*10:<12} {'-'*6:<8} {'-'*10}")
-        for r in self.results:
-            print(
-                f"  {r.alert_id:<12} "
-                f"{r.severity.value:<10} "
-                f"{r.ip or 'N/A':<18} "
-                f"{r.verdict.value if r.verdict else 'N/A':<12} "
-                f"{str(r.score) if r.score is not None else '-':<8} "
-                f"{r.action}"
-            )
+        for result in self.results:
+            ip_str = result.ip or "(none)"
+            verdict_str = result.verdict.value if result.verdict else "(none)"
+            score_str = str(result.score) if result.score is not None else "(none)"
+            print(f"  {result.alert_id:<12} {result.severity.value:<10} {ip_str:<18} {verdict_str:<12} {score_str:<8} {result.action}")
         print(_SEPARATOR)
         print()
+        logger.info("Analysis complete. Processed %d alerts, %d actions taken.", len(self.results), sum(1 for r in self.results if r.action != "SKIPPED"))
