@@ -47,10 +47,20 @@ class ThreatHunterAgent:
     def _step_check_reputation(self, ip: str) -> ReputationResult:
         """Step 2: Check IP reputation via threat intelligence."""
         print(f"  [DECIDE]   Checking IP reputation via VirusTotal...")
-        result = virustotal_ip_check(ip)
-        print(f"  [ANALYZE]  Verdict: {result.verdict.value} (score: {result.score}/100)")
-        print(f"             {result.details}")
-        return result
+        try:
+            result = virustotal_ip_check(ip)
+            print(f"  [ANALYZE]  Verdict: {result.verdict.value} (score: {result.score}/100)")
+            print(f"             {result.details}")
+            return result
+        except Exception as exc:
+            logger.exception("Error checking IP reputation for %s: %s", ip, exc)
+            print(f"  [ANALYZE]  Error checking reputation -- treating as suspicious")
+            return ReputationResult(
+                ip=ip,
+                score=60,
+                verdict=Verdict.SUSPICIOUS,
+                details=f"Unable to check reputation: {type(exc).__name__}"
+            )
 
     def _step_remediate(self, ip: str, verdict: Verdict) -> str:
         """Step 3: Take action based on verdict, requesting human approval for destructive actions."""
@@ -78,6 +88,12 @@ class ThreatHunterAgent:
 
         alerts = self.ingestor.ingest()
         print(f"\n  Loaded {len(alerts)} alerts. Beginning reasoning loop...\n")
+
+        if not alerts:
+            print(_SEPARATOR)
+            print("  WARNING: No alerts to process.")
+            print(_SEPARATOR)
+            return self.results
 
         for alert in alerts:
             print(_SEPARATOR)
@@ -124,14 +140,10 @@ class ThreatHunterAgent:
         print(_SEPARATOR)
         print(f"  {'Alert':<12} {'Severity':<10} {'IP':<18} {'Verdict':<12} {'Score':<8} {'Action'}")
         print(f"  {'-'*10:<12} {'-'*8:<10} {'-'*16:<18} {'-'*10:<12} {'-'*6:<8} {'-'*10}")
-        for r in self.results:
-            print(
-                f"  {r.alert_id:<12} "
-                f"{r.severity.value:<10} "
-                f"{r.ip or 'N/A':<18} "
-                f"{r.verdict.value if r.verdict else 'N/A':<12} "
-                f"{str(r.score) if r.score is not None else '-':<8} "
-                f"{r.action}"
-            )
+        for result in self.results:
+            ip_str = result.ip or "(none)"
+            verdict_str = result.verdict.value if result.verdict else "(none)"
+            score_str = str(result.score) if result.score is not None else "-"
+            print(f"  {result.alert_id:<12} {result.severity.value:<10} {ip_str:<18} {verdict_str:<12} {score_str:<8} {result.action}")
         print(_SEPARATOR)
         print()
