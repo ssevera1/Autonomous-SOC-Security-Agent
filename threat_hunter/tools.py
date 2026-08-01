@@ -2,6 +2,8 @@
 
 import hashlib
 import logging
+import random
+from typing import Optional
 
 from .models import ReputationResult, Verdict
 
@@ -14,29 +16,56 @@ _KNOWN_MALICIOUS = {
     "45.33.32.156",
 }
 
+# Retry configuration
+_MAX_RETRIES = 3
+_RETRY_DELAY_SECONDS = 0.5
 
-def virustotal_ip_check(ip: str) -> ReputationResult:
+
+class VirusTotalAPIError(Exception):
+    """Raised when VirusTotal API call fails after retries."""
+    pass
+
+
+def virustotal_ip_check(ip: str) -> Optional[ReputationResult]:
     """Mock VirusTotal API - returns a reputation score for an IP address.
 
     Uses a deterministic hash-based score so results are consistent across runs.
     Known-malicious IPs from the demo dataset always return high scores.
+    Implements retry logic to handle transient network failures gracefully.
+
+    Args:
+        ip: IP address to check
+
+    Returns:
+        ReputationResult if successful, None if all retries exhausted
     """
-    logger.info("[VirusTotal API] Checking reputation for IP: %s", ip)
+    for attempt in range(1, _MAX_RETRIES + 1):
+        try:
+            logger.info("[VirusTotal API] Checking reputation for IP: %s (attempt %d/%d)", ip, attempt, _MAX_RETRIES)
 
-    if ip in _KNOWN_MALICIOUS:
-        score = 85 + (int(hashlib.md5(ip.encode()).hexdigest()[:2], 16) % 16)
-        verdict = Verdict.MALICIOUS
-        details = f"IP {ip} flagged by multiple threat feeds -- high confidence malicious"
-    else:
-        # Deterministic score from hash: 0-84 range
-        score = int(hashlib.md5(ip.encode()).hexdigest()[:2], 16) % 85
-        if score >= 50:
-            verdict = Verdict.SUSPICIOUS
-            details = f"IP {ip} has low-confidence detections -- further review recommended"
-        else:
-            verdict = Verdict.CLEAN
-            details = f"IP {ip} has no significant detections"
+            if ip in _KNOWN_MALICIOUS:
+                score = 85 + (int(hashlib.md5(ip.encode()).hexdigest()[:2], 16) % 16)
+                verdict = Verdict.MALICIOUS
+                details = f"IP {ip} flagged by multiple threat feeds -- high confidence malicious"
+            else:
+                # Deterministic score from hash: 0-84 range
+                score = int(hashlib.md5(ip.encode()).hexdigest()[:2], 16) % 85
+                if score >= 50:
+                    verdict = Verdict.SUSPICIOUS
+                    details = f"IP {ip} has low-confidence detections -- further review recommended"
+                else:
+                    verdict = Verdict.CLEAN
+                    details = f"IP {ip} has no significant detections"
 
-    result = ReputationResult(ip=ip, score=score, verdict=verdict, details=details)
-    logger.info("[VirusTotal API] Result: %s (score=%d)", verdict.value, score)
-    return result
+            result = ReputationResult(ip=ip, score=score, verdict=verdict, details=details)
+            logger.info("[VirusTotal API] Result: %s (score=%d)", verdict.value, score)
+            return result
+
+        except Exception as e:
+            logger.warning("[VirusTotal API] Attempt %d failed: %s", attempt, str(e))
+            if attempt < _MAX_RETRIES:
+                import time
+                time.sleep(_RETRY_DELAY_SECONDS)
+            else:
+                logger.error("[VirusTotal API] Failed to check IP %s after %d retries", ip, _MAX_RETRIES)
+                return None
