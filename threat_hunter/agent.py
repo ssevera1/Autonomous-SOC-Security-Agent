@@ -114,11 +114,24 @@ class ThreatHunterAgent:
             ))
             print()
 
-        self._print_summary()
+        self._validate_and_print_summary()
         return self.results
 
-    def _print_summary(self) -> None:
-        """Print a final summary table of all actions taken."""
+    def _validate_and_print_summary(self) -> None:
+        """Validate results and print a final summary table of all actions taken."""
+        if self.min_severity != Severity.LOW and not self.results:
+            logger.warning(
+                f"No alerts met the minimum severity threshold of {self.min_severity.value}. "
+                "Analysis completed with no results to report."
+            )
+            print(_SEPARATOR)
+            print("  SUMMARY")
+            print(_SEPARATOR)
+            print(f"  No alerts exceeded severity threshold {self.min_severity.value}.")
+            print(_SEPARATOR)
+            print()
+            return
+
         print(_SEPARATOR)
         print("  SUMMARY")
         print(_SEPARATOR)
