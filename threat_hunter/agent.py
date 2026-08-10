@@ -44,13 +44,18 @@ class ThreatHunterAgent:
         print("  [EXTRACT]  No valid public IP address found -- skipping alert.")
         return None
 
-    def _step_check_reputation(self, ip: str) -> ReputationResult:
+    def _step_check_reputation(self, ip: str) -> ReputationResult | None:
         """Step 2: Check IP reputation via threat intelligence."""
         print(f"  [DECIDE]   Checking IP reputation via VirusTotal...")
-        result = virustotal_ip_check(ip)
-        print(f"  [ANALYZE]  Verdict: {result.verdict.value} (score: {result.score}/100)")
-        print(f"             {result.details}")
-        return result
+        try:
+            result = virustotal_ip_check(ip)
+            print(f"  [ANALYZE]  Verdict: {result.verdict.value} (score: {result.score}/100)")
+            print(f"             {result.details}")
+            return result
+        except Exception as e:
+            logger.error(f"IP reputation check failed for {ip}: {e}", exc_info=True)
+            print(f"  [ERROR]    Failed to check reputation for {ip}: {type(e).__name__}")
+            return None
 
     def _step_remediate(self, ip: str, verdict: Verdict) -> str:
         """Step 3: Take action based on verdict, requesting human approval for destructive actions."""
@@ -100,6 +105,10 @@ class ThreatHunterAgent:
 
             # Step 2 - Analyze
             reputation = self._step_check_reputation(ip)
+            if reputation is None:
+                self.results.append(AnalysisResult(alert_id=alert.id, severity=alert.severity, action="SKIPPED"))
+                print()
+                continue
 
             # Step 3 - Act
             action = self._step_remediate(ip, reputation.verdict)
