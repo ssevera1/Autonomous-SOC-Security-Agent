@@ -3,6 +3,7 @@
 import ipaddress
 import logging
 import re
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from .log_ingestor import LogIngestor
 from .models import Alert, AnalysisResult, ReputationResult, Severity, Verdict
@@ -44,10 +45,15 @@ class ThreatHunterAgent:
         print("  [EXTRACT]  No valid public IP address found -- skipping alert.")
         return None
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    def _virustotal_ip_check_with_retry(self, ip: str) -> ReputationResult:
+        """Call virustotal_ip_check with retry logic for transient failures."""
+        return virustotal_ip_check(ip)
+
     def _step_check_reputation(self, ip: str) -> ReputationResult:
         """Step 2: Check IP reputation via threat intelligence."""
         print(f"  [DECIDE]   Checking IP reputation via VirusTotal...")
-        result = virustotal_ip_check(ip)
+        result = self._virustotal_ip_check_with_retry(ip)
         print(f"  [ANALYZE]  Verdict: {result.verdict.value} (score: {result.score}/100)")
         print(f"             {result.details}")
         return result
