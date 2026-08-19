@@ -163,8 +163,11 @@ class ThreatHunterAgent:
         flagged_count = sum(1 for r in self.results if r.action == "FLAGGED")
         error_count = sum(1 for r in self.results if r.action == "ERROR")
         
-        logger.info(
-            f"Analysis complete. Processed: {processed_count}, Skipped: {skipped_count}, "
-            f"Blocked: {blocked_count}, Flagged: {flagged_count}, Errors: {error_count}"
+        summary_msg = (
+            f"Analysis complete. Alerts: {len(self.results)}, Processed: {processed_count}, "
+            f"Skipped: {skipped_count}, Blocked: {blocked_count}, Flagged: {flagged_count}, "
+            f"Errors: {error_count}"
         )
+        logger.info(summary_msg)
+        print(f"  {summary_msg}")
         print()
