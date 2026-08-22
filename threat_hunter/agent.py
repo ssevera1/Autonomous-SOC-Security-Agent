@@ -162,6 +162,8 @@ class ThreatHunterAgent:
         blocked_count = sum(1 for r in self.results if r.action == "BLOCKED")
         flagged_count = sum(1 for r in self.results if r.action == "FLAGGED")
         error_count = sum(1 for r in self.results if r.action == "ERROR")
+        no_action_count = sum(1 for r in self.results if r.action == "NO_ACTION")
+        declined_count = sum(1 for r in self.results if r.action == "DECLINED")
         
         summary_msg = (
             f"Analysis complete. Alerts: {len(self.results)}, Processed: {processed_count}, "
@@ -169,5 +171,13 @@ class ThreatHunterAgent:
             f"Errors: {error_count}"
         )
         logger.info(summary_msg)
+        
+        action_breakdown = (
+            f"action_breakdown: blocked={blocked_count}, flagged={flagged_count}, "
+            f"no_action={no_action_count}, declined={declined_count}, error={error_count}, "
+            f"skipped={skipped_count}"
+        )
+        logger.info(action_breakdown)
+        
         print(f"  {summary_msg}")
         print()
