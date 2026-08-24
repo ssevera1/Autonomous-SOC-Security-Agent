@@ -123,7 +123,18 @@ class ThreatHunterAgent:
             ))
             print()
 
-        self._validate_and_print_summary()
+        try:
+            self._validate_and_print_summary()
+            logger.info(f"Analysis complete. Aggregated {len(self.results)} results.")
+        except Exception as e:
+            logger.error(f"Error during summary generation: {e}", exc_info=True)
+            logger.info(f"Analysis completed with {len(self.results)} results despite post-processing error.")
+            print(_SEPARATOR)
+            print("  WARNING: Summary generation failed. Per-alert output above is complete;")
+            print("           see threat_hunter.log for the error details.")
+            print(_SEPARATOR)
+            print()
+
         return self.results
 
     def _validate_and_print_summary(self) -> None:
