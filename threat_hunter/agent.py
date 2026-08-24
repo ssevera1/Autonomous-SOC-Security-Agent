@@ -130,7 +130,8 @@ class ThreatHunterAgent:
             logger.error(f"Error during summary generation: {e}", exc_info=True)
             logger.info(f"Analysis completed with {len(self.results)} results despite post-processing error.")
             print(_SEPARATOR)
-            print("  WARNING: Summary generation failed, but results have been persisted.")
+            print("  WARNING: Summary generation failed. Per-alert output above is complete;")
+            print("           see threat_hunter.log for the error details.")
             print(_SEPARATOR)
             print()
 
