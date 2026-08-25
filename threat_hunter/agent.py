@@ -183,16 +183,20 @@ class ThreatHunterAgent:
         )
         logger.info(summary_msg)
         
+        action_counts = {
+            "blocked": blocked_count,
+            "declined": declined_count,
+            "flagged": flagged_count,
+            "no_action": no_action_count,
+            "skipped": skipped_count,
+            "error": error_count,
+        }
+        # Render the counts into the message so they survive the plain-text formatter
+        # configured in main.py; `extra` only attaches attributes to the LogRecord and
+        # is picked up solely by structured (e.g. JSON) formatters.
         logger.info(
-            "action_counts",
-            extra={
-                "blocked": blocked_count,
-                "declined": declined_count,
-                "flagged": flagged_count,
-                "no_action": no_action_count,
-                "skipped": skipped_count,
-                "error": error_count,
-            },
+            "action_counts: " + ", ".join(f"{name}={count}" for name, count in action_counts.items()),
+            extra=action_counts,
         )
         
         print(f"  {summary_msg}")
