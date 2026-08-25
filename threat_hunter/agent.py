@@ -168,13 +168,13 @@ class ThreatHunterAgent:
             )
         print(_SEPARATOR)
         
-        skipped_count = sum(1 for r in self.results if r.action == "SKIPPED")
-        processed_count = len(self.results) - skipped_count
         blocked_count = sum(1 for r in self.results if r.action == "BLOCKED")
-        flagged_count = sum(1 for r in self.results if r.action == "FLAGGED")
-        error_count = sum(1 for r in self.results if r.action == "ERROR")
-        no_action_count = sum(1 for r in self.results if r.action == "NO_ACTION")
         declined_count = sum(1 for r in self.results if r.action == "DECLINED")
+        flagged_count = sum(1 for r in self.results if r.action == "FLAGGED")
+        no_action_count = sum(1 for r in self.results if r.action == "NO_ACTION")
+        skipped_count = sum(1 for r in self.results if r.action == "SKIPPED")
+        error_count = sum(1 for r in self.results if r.action == "ERROR")
+        processed_count = len(self.results) - skipped_count
         
         summary_msg = (
             f"Analysis complete. Alerts: {len(self.results)}, Processed: {processed_count}, "
@@ -183,12 +183,17 @@ class ThreatHunterAgent:
         )
         logger.info(summary_msg)
         
-        action_breakdown = (
-            f"action_breakdown: blocked={blocked_count}, flagged={flagged_count}, "
-            f"no_action={no_action_count}, declined={declined_count}, error={error_count}, "
-            f"skipped={skipped_count}"
+        logger.info(
+            "action_counts",
+            extra={
+                "blocked": blocked_count,
+                "declined": declined_count,
+                "flagged": flagged_count,
+                "no_action": no_action_count,
+                "skipped": skipped_count,
+                "error": error_count,
+            },
         )
-        logger.info(action_breakdown)
         
         print(f"  {summary_msg}")
         print()
