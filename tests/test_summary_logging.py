@@ -25,6 +25,21 @@ def _result(alert_id: str, action: str) -> AnalysisResult:
     )
 
 
+class _PoisonResult:
+    """Stands in for a result whose formatting blows up mid-table.
+
+    Reading `alert_id` raises, so the failure originates inside the body of
+    `_validate_and_print_summary()` (the `:<12` table loop) rather than being
+    injected at the call site.
+    """
+
+    action = "BLOCKED"
+
+    @property
+    def alert_id(self) -> str:
+        raise ValueError("unformattable alert_id")
+
+
 class _RecordCapture(logging.Handler):
     def __init__(self) -> None:
         super().__init__()
@@ -114,3 +129,41 @@ def test_summary_message_still_reports_processed_and_skipped(
     assert "Alerts: 7" in summary
     assert "Processed: 6" in summary
     assert "Skipped: 1" in summary
+
+
+def test_summary_failure_is_logged_once_and_absorbed_by_run(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failing summary must produce exactly one ERROR record, and not crash run().
+
+    The handler in `run()` owns this failure mode: it logs the traceback, prints the
+    warning banner, and still returns the collected results. Adding a second handler
+    inside `_validate_and_print_summary()` that re-raises would double every traceback
+    in threat_hunter.log for no extra diagnostic value.
+    """
+    agent = ThreatHunterAgent(str(SAMPLE_ALERTS))
+    monkeypatch.setattr(agent.ingestor, "ingest", lambda: [])
+    agent.results = [_result("A-1", "BLOCKED"), _PoisonResult()]  # type: ignore[list-item]
+
+    handler = _RecordCapture()
+    logger = logging.getLogger("threat_hunter.agent")
+    previous_level = logger.level
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    try:
+        returned = agent.run()
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(previous_level)
+
+    out = capsys.readouterr().out
+
+    assert returned is agent.results
+    assert len(returned) == 2
+
+    errors = [r for r in handler.records if r.levelno == logging.ERROR]
+    assert len(errors) == 1, f"expected one ERROR record, got {[r.getMessage() for r in errors]}"
+    assert errors[0].exc_info is not None, "the ERROR record must carry the traceback"
+
+    assert "WARNING: Summary generation failed." in out

@@ -139,69 +139,65 @@ class ThreatHunterAgent:
 
     def _validate_and_print_summary(self) -> None:
         """Validate results and print a final summary table of all actions taken."""
-        try:
-            if self.min_severity != Severity.LOW and not self.results:
-                logger.warning(
-                    f"No alerts met the minimum severity threshold of {self.min_severity.value}. "
-                    "Analysis completed with no results to report."
-                )
-                print(_SEPARATOR)
-                print("  SUMMARY")
-                print(_SEPARATOR)
-                print(f"  No alerts exceeded severity threshold {self.min_severity.value}.")
-                print(_SEPARATOR)
-                print()
-                return
-
+        if self.min_severity != Severity.LOW and not self.results:
+            logger.warning(
+                f"No alerts met the minimum severity threshold of {self.min_severity.value}. "
+                "Analysis completed with no results to report."
+            )
             print(_SEPARATOR)
             print("  SUMMARY")
             print(_SEPARATOR)
-            print(f"  {'Alert':<12} {'Severity':<10} {'IP':<18} {'Verdict':<12} {'Score':<8} {'Action'}")
-            print(f"  {'-'*10:<12} {'-'*8:<10} {'-'*16:<18} {'-'*10:<12} {'-'*6:<8} {'-'*10}")
-            for r in self.results:
-                print(
-                    f"  {r.alert_id:<12} "
-                    f"{r.severity.value:<10} "
-                    f"{r.ip or 'N/A':<18} "
-                    f"{r.verdict.value if r.verdict else 'N/A':<12} "
-                    f"{str(r.score) if r.score is not None else '-':<8} "
-                    f"{r.action}"
-                )
+            print(f"  No alerts exceeded severity threshold {self.min_severity.value}.")
             print(_SEPARATOR)
-            
-            blocked_count = sum(1 for r in self.results if r.action == "BLOCKED")
-            declined_count = sum(1 for r in self.results if r.action == "DECLINED")
-            flagged_count = sum(1 for r in self.results if r.action == "FLAGGED")
-            no_action_count = sum(1 for r in self.results if r.action == "NO_ACTION")
-            skipped_count = sum(1 for r in self.results if r.action == "SKIPPED")
-            error_count = sum(1 for r in self.results if r.action == "ERROR")
-            processed_count = len(self.results) - skipped_count
-            
-            summary_msg = (
-                f"Analysis complete. Alerts: {len(self.results)}, Processed: {processed_count}, "
-                f"Skipped: {skipped_count}, Blocked: {blocked_count}, Flagged: {flagged_count}, "
-                f"Errors: {error_count}"
-            )
-            logger.info(summary_msg)
-            
-            action_counts = {
-                "blocked": blocked_count,
-                "declined": declined_count,
-                "flagged": flagged_count,
-                "no_action": no_action_count,
-                "skipped": skipped_count,
-                "error": error_count,
-            }
-            # Render the counts into the message so they survive the plain-text formatter
-            # configured in main.py; `extra` only attaches attributes to the LogRecord and
-            # is picked up solely by structured (e.g. JSON) formatters.
-            logger.info(
-                "action_counts: " + ", ".join(f"{name}={count}" for name, count in action_counts.items()),
-                extra=action_counts,
-            )
-            
-            print(f"  {summary_msg}")
             print()
-        except Exception as e:
-            logger.error(f"Failed to format or print summary: {e}", exc_info=True)
-            raise
+            return
+
+        print(_SEPARATOR)
+        print("  SUMMARY")
+        print(_SEPARATOR)
+        print(f"  {'Alert':<12} {'Severity':<10} {'IP':<18} {'Verdict':<12} {'Score':<8} {'Action'}")
+        print(f"  {'-'*10:<12} {'-'*8:<10} {'-'*16:<18} {'-'*10:<12} {'-'*6:<8} {'-'*10}")
+        for r in self.results:
+            print(
+                f"  {r.alert_id:<12} "
+                f"{r.severity.value:<10} "
+                f"{r.ip or 'N/A':<18} "
+                f"{r.verdict.value if r.verdict else 'N/A':<12} "
+                f"{str(r.score) if r.score is not None else '-':<8} "
+                f"{r.action}"
+            )
+        print(_SEPARATOR)
+        
+        blocked_count = sum(1 for r in self.results if r.action == "BLOCKED")
+        declined_count = sum(1 for r in self.results if r.action == "DECLINED")
+        flagged_count = sum(1 for r in self.results if r.action == "FLAGGED")
+        no_action_count = sum(1 for r in self.results if r.action == "NO_ACTION")
+        skipped_count = sum(1 for r in self.results if r.action == "SKIPPED")
+        error_count = sum(1 for r in self.results if r.action == "ERROR")
+        processed_count = len(self.results) - skipped_count
+        
+        summary_msg = (
+            f"Analysis complete. Alerts: {len(self.results)}, Processed: {processed_count}, "
+            f"Skipped: {skipped_count}, Blocked: {blocked_count}, Flagged: {flagged_count}, "
+            f"Errors: {error_count}"
+        )
+        logger.info(summary_msg)
+        
+        action_counts = {
+            "blocked": blocked_count,
+            "declined": declined_count,
+            "flagged": flagged_count,
+            "no_action": no_action_count,
+            "skipped": skipped_count,
+            "error": error_count,
+        }
+        # Render the counts into the message so they survive the plain-text formatter
+        # configured in main.py; `extra` only attaches attributes to the LogRecord and
+        # is picked up solely by structured (e.g. JSON) formatters.
+        logger.info(
+            "action_counts: " + ", ".join(f"{name}={count}" for name, count in action_counts.items()),
+            extra=action_counts,
+        )
+        
+        print(f"  {summary_msg}")
+        print()
