@@ -19,6 +19,7 @@ _KNOWN_MALICIOUS = {
 # Retry configuration
 _MAX_RETRIES = 3
 _RETRY_DELAY_SECONDS = 0.5
+_REQUEST_TIMEOUT_SECONDS = 5
 
 
 class VirusTotalAPIError(Exception):
@@ -26,7 +27,7 @@ class VirusTotalAPIError(Exception):
     pass
 
 
-def virustotal_ip_check(ip: str) -> Optional[ReputationResult]:
+def virustotal_ip_check(ip: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> Optional[ReputationResult]:
     """Mock VirusTotal API - returns a reputation score for an IP address.
 
     Uses a deterministic hash-based score so results are consistent across runs.
@@ -35,10 +36,14 @@ def virustotal_ip_check(ip: str) -> Optional[ReputationResult]:
 
     Args:
         ip: IP address to check
+        timeout: Request timeout in seconds (default: 5)
 
     Returns:
         ReputationResult if successful, None if all retries exhausted
     """
+    if timeout <= 0:
+        raise ValueError("timeout must be positive")
+
     for attempt in range(1, _MAX_RETRIES + 1):
         try:
             logger.info("[VirusTotal API] Checking reputation for IP: %s (attempt %d/%d)", ip, attempt, _MAX_RETRIES)
@@ -61,6 +66,20 @@ def virustotal_ip_check(ip: str) -> Optional[ReputationResult]:
             logger.info("[VirusTotal API] Result: %s (score=%d)", verdict.value, score)
             return result
 
+        except TimeoutError:
+            logger.warning("[VirusTotal API] Attempt %d failed: request timeout", attempt)
+            if attempt < _MAX_RETRIES:
+                time.sleep(_RETRY_DELAY_SECONDS)
+            else:
+                logger.error("[VirusTotal API] Failed to check IP %s after %d retries (timeout)", ip, _MAX_RETRIES)
+                return None
+        except ConnectionError:
+            logger.warning("[VirusTotal API] Attempt %d failed: connection error", attempt)
+            if attempt < _MAX_RETRIES:
+                time.sleep(_RETRY_DELAY_SECONDS)
+            else:
+                logger.error("[VirusTotal API] Failed to check IP %s after %d retries (connection error)", ip, _MAX_RETRIES)
+                return None
         except Exception as e:
             logger.warning("[VirusTotal API] Attempt %d failed: %s", attempt, str(e))
             if attempt < _MAX_RETRIES:
