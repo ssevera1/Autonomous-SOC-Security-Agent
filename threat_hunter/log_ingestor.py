@@ -2,9 +2,10 @@
 
 import json
 import logging
+import signal
 from pathlib import Path
-from signal import signal, SIGALRM, alarm
 
+from ._alarm_support import alarm_supported as _alarm_supported
 from .models import Alert
 
 logger = logging.getLogger(__name__)
@@ -28,17 +29,19 @@ class LogIngestor:
     def ingest(self) -> list[Alert]:
         """Parse the JSON log file and return a list of validated alerts."""
         logger.info("Ingesting alerts from %s", self.filepath)
-        
-        signal(SIGALRM, self._timeout_handler)
-        alarm(self.INGEST_TIMEOUT_SECONDS)
-        
+
+        use_alarm = _alarm_supported()
+        previous_handler = None
+        previous_remaining = 0
+        if use_alarm:
+            previous_handler = signal.signal(signal.SIGALRM, self._timeout_handler)
+            previous_remaining = signal.alarm(self.INGEST_TIMEOUT_SECONDS)
+
         try:
             try:
                 raw = json.loads(self.filepath.read_text(encoding="utf-8"))
             except json.JSONDecodeError as exc:
                 raise ValueError(f"Invalid JSON in log file {self.filepath}: {exc}") from exc
-            except TimeoutError as exc:
-                raise TimeoutError(f"Reading log file {self.filepath} timed out: {exc}") from exc
 
             if not isinstance(raw, list):
                 raise ValueError(f"Expected a JSON array in {self.filepath}, got {type(raw).__name__}")
@@ -48,10 +51,14 @@ class LogIngestor:
                 try:
                     alert = Alert.model_validate(entry)
                     alerts.append(alert)
-                except Exception as exc:
+                except (ValueError, TypeError) as exc:
                     logger.warning("Skipping malformed alert entry: %s -- %s", entry, exc)
 
             logger.info("Ingested %d alerts", len(alerts))
             return alerts
         finally:
-            alarm(0)
+            if use_alarm:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, previous_handler)
+                if previous_remaining > 0:
+                    signal.alarm(previous_remaining)
