@@ -3,7 +3,8 @@
 import logging
 import signal
 import sys
-import threading
+
+from ._alarm_support import alarm_supported as _alarm_supported
 
 logger = logging.getLogger(__name__)
 
@@ -13,20 +14,6 @@ _REQUEST_TIMEOUT = 120  # seconds -- generous enough to read a CRITICAL alert be
 def _timeout_handler(signum, frame):
     """Handle timeout during input request."""
     raise TimeoutError("Input request timed out")
-
-
-def _alarm_supported() -> bool:
-    """Whether we can safely arm a SIGALRM-based timeout in this process.
-
-    `signal.signal()` raises `ValueError` off the main thread and `SIGALRM` /
-    `setitimer` don't exist on Windows, so callers must check this before
-    arming rather than relying on a broad `except` to paper over it.
-    """
-    return (
-        hasattr(signal, "SIGALRM")
-        and hasattr(signal, "setitimer")
-        and threading.current_thread() is threading.main_thread()
-    )
 
 
 def _flush_pending_stdin() -> None:

@@ -2,8 +2,10 @@
 
 import json
 import logging
+import signal
 from pathlib import Path
 
+from ._alarm_support import alarm_supported as _alarm_supported
 from .models import Alert
 
 logger = logging.getLogger(__name__)
@@ -12,29 +14,51 @@ logger = logging.getLogger(__name__)
 class LogIngestor:
     """Reads a local JSON log file and yields validated Alert objects."""
 
+    INGEST_TIMEOUT_SECONDS = 300
+
     def __init__(self, filepath: str | Path) -> None:
         self.filepath = Path(filepath)
         if not self.filepath.exists():
             raise FileNotFoundError(f"Log file not found: {self.filepath}")
 
+    def _timeout_handler(self, signum, frame):
+        raise TimeoutError(
+            f"Alert ingestion exceeded {self.INGEST_TIMEOUT_SECONDS}s timeout"
+        )
+
     def ingest(self) -> list[Alert]:
         """Parse the JSON log file and return a list of validated alerts."""
         logger.info("Ingesting alerts from %s", self.filepath)
+
+        use_alarm = _alarm_supported()
+        previous_handler = None
+        previous_remaining = 0
+        if use_alarm:
+            previous_handler = signal.signal(signal.SIGALRM, self._timeout_handler)
+            previous_remaining = signal.alarm(self.INGEST_TIMEOUT_SECONDS)
+
         try:
-            raw = json.loads(self.filepath.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Invalid JSON in log file {self.filepath}: {exc}") from exc
-
-        if not isinstance(raw, list):
-            raise ValueError(f"Expected a JSON array in {self.filepath}, got {type(raw).__name__}")
-
-        alerts: list[Alert] = []
-        for entry in raw:
             try:
-                alert = Alert.model_validate(entry)
-                alerts.append(alert)
-            except Exception as exc:
-                logger.warning("Skipping malformed alert entry: %s -- %s", entry, exc)
+                raw = json.loads(self.filepath.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Invalid JSON in log file {self.filepath}: {exc}") from exc
 
-        logger.info("Ingested %d alerts", len(alerts))
-        return alerts
+            if not isinstance(raw, list):
+                raise ValueError(f"Expected a JSON array in {self.filepath}, got {type(raw).__name__}")
+
+            alerts: list[Alert] = []
+            for entry in raw:
+                try:
+                    alert = Alert.model_validate(entry)
+                    alerts.append(alert)
+                except (ValueError, TypeError) as exc:
+                    logger.warning("Skipping malformed alert entry: %s -- %s", entry, exc)
+
+            logger.info("Ingested %d alerts", len(alerts))
+            return alerts
+        finally:
+            if use_alarm:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, previous_handler)
+                if previous_remaining > 0:
+                    signal.alarm(previous_remaining)
