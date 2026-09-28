@@ -33,7 +33,24 @@ def failing_lookup(monkeypatch: pytest.MonkeyPatch) -> list[int]:
     return attempts
 
 
+def test_tools_does_not_shadow_the_builtin_timeout_error() -> None:
+    """`threat_hunter.tools` must not define its own `TimeoutError`.
+
+    `remediation.py` and `log_ingestor.py` raise and catch the *builtin*
+    `TimeoutError` (a subclass of `OSError`). A same-named local class in this
+    module would be a distinct, unrelated type: `except TimeoutError` here
+    would silently stop catching genuine builtin timeouts (e.g. from a real
+    HTTP call replacing the current mock).
+    """
+    assert not hasattr(tools, "TimeoutError"), (
+        "tools.py defines its own TimeoutError, shadowing the builtin that "
+        "remediation.py and log_ingestor.py actually raise/catch"
+    )
+
+
 @pytest.mark.parametrize("bad_timeout", [0, 0.0, -1, -0.5])
+
+
 def test_non_positive_timeout_is_rejected(bad_timeout: float) -> None:
     with pytest.raises(ValueError, match="timeout must be positive"):
         tools.virustotal_ip_check("203.0.113.42", timeout=bad_timeout)

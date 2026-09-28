@@ -27,16 +27,6 @@ class VirusTotalAPIError(Exception):
     pass
 
 
-class TimeoutError(Exception):
-    """Raised when API call exceeds timeout budget."""
-    pass
-
-
-class RateLimitError(Exception):
-    """Raised when API rate limit is exceeded."""
-    pass
-
-
 def virustotal_ip_check(ip: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> Optional[ReputationResult]:
     """Mock VirusTotal API - returns a reputation score for an IP address.
 
@@ -92,17 +82,13 @@ def virustotal_ip_check(ip: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> O
             logger.info("[VirusTotal API] Result: %s (score=%d)", verdict.value, score)
             return result
 
-        except (TimeoutError, RateLimitError) as e:
-            logger.warning("[VirusTotal API] Attempt %d failed (recoverable): %s", attempt, str(e))
-            if attempt >= _MAX_RETRIES:
-                logger.error("[VirusTotal API] Failed to check IP %s after %d retries", ip, _MAX_RETRIES)
-                return None
-            time.sleep(min(_RETRY_DELAY_SECONDS, max(0.0, deadline - time.monotonic())))
         except Exception as e:
             logger.warning("[VirusTotal API] Attempt %d failed: %s", attempt, str(e))
             if attempt >= _MAX_RETRIES:
                 logger.error("[VirusTotal API] Failed to check IP %s after %d retries", ip, _MAX_RETRIES)
                 return None
+            # Never sleep past the deadline; the check at the top of the next
+            # iteration turns an exhausted budget into a timeout.
             time.sleep(min(_RETRY_DELAY_SECONDS, max(0.0, deadline - time.monotonic())))
 
     return None
