@@ -20,11 +20,45 @@ _KNOWN_MALICIOUS = {
 _MAX_RETRIES = 3
 _RETRY_DELAY_SECONDS = 0.5
 _REQUEST_TIMEOUT_SECONDS = 5.0
+_INITIALIZATION_TIMEOUT_SECONDS = 2.0
 
 
 class VirusTotalAPIError(Exception):
     """Raised when VirusTotal API call fails after retries."""
     pass
+
+
+def _initialize_virustotal_client(timeout: float = _INITIALIZATION_TIMEOUT_SECONDS) -> bool:
+    """Initialize VirusTotal API client with timeout and retry logic.
+
+    Args:
+        timeout: Total wall-clock budget in seconds for initialization.
+
+    Returns:
+        True if initialization successful, False if timed out or failed.
+    """
+    deadline = time.monotonic() + timeout
+
+    for attempt in range(1, _MAX_RETRIES + 1):
+        if time.monotonic() >= deadline:
+            logger.error(
+                "[VirusTotal API] Client initialization timed out after %.3fs (%d/%d attempts)",
+                timeout, attempt - 1, _MAX_RETRIES,
+            )
+            return False
+
+        try:
+            logger.info("[VirusTotal API] Initializing client (attempt %d/%d)", attempt, _MAX_RETRIES)
+            # Mock initialization: no-op in this implementation
+            return True
+        except Exception as e:
+            logger.warning("[VirusTotal API] Client initialization attempt %d failed: %s", attempt, str(e))
+            if attempt >= _MAX_RETRIES:
+                logger.error("[VirusTotal API] Client initialization failed after %d retries", _MAX_RETRIES)
+                return False
+            time.sleep(min(_RETRY_DELAY_SECONDS, max(0.0, deadline - time.monotonic())))
+
+    return False
 
 
 def virustotal_ip_check(ip: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> Optional[ReputationResult]:
@@ -50,6 +84,12 @@ def virustotal_ip_check(ip: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> O
     """
     if timeout <= 0:
         raise ValueError("timeout must be positive")
+
+    # Initialize client with a portion of the timeout budget
+    init_timeout = min(_INITIALIZATION_TIMEOUT_SECONDS, timeout * 0.2)
+    if not _initialize_virustotal_client(timeout=init_timeout):
+        logger.error("[VirusTotal API] Failed to initialize client for IP check: %s", ip)
+        return None
 
     deadline = time.monotonic() + timeout
 
