@@ -33,6 +33,19 @@ def failing_lookup(monkeypatch: pytest.MonkeyPatch) -> list[int]:
     return attempts
 
 
+@pytest.fixture
+def failing_connect(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Make every client-initialization attempt fail, recording attempt count."""
+    attempts: list[int] = []
+
+    def boom() -> None:
+        attempts.append(1)
+        raise RuntimeError("simulated connect failure")
+
+    monkeypatch.setattr(tools, "_connect_virustotal_client", boom)
+    return attempts
+
+
 @pytest.mark.parametrize("bad_timeout", [0, 0.0, -1, -0.5])
 def test_non_positive_timeout_is_rejected(bad_timeout: float) -> None:
     with pytest.raises(ValueError, match="timeout must be positive"):
@@ -109,3 +122,63 @@ def test_retry_backoff_never_sleeps_past_the_deadline(
 
     assert slept, "expected at least one backoff"
     assert all(0.0 <= s <= budget for s in slept), f"backoff overshot the budget: {slept}"
+
+
+def test_client_initialization_retries_on_failure(
+    failing_connect: list[int],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A failing connect step must retry up to `_MAX_RETRIES` and then give up.
+
+    Before the `_connect_virustotal_client` seam existed, the try body in
+    `_initialize_virustotal_client` could never raise, so this retry/failure
+    path was unreachable dead code.
+    """
+    monkeypatch.setattr(tools.time, "sleep", lambda _seconds: None)
+    caplog.set_level(logging.ERROR, logger="threat_hunter.tools")
+
+    result = tools.virustotal_ip_check("203.0.113.42", timeout=30)
+
+    assert result is None
+    assert len(failing_connect) == tools._MAX_RETRIES
+    assert any(
+        "Client initialization failed after" in r.getMessage() for r in caplog.records
+    )
+    assert any(
+        "Failed to initialize client for IP check" in r.getMessage()
+        for r in caplog.records
+    )
+
+
+def test_client_initialization_respects_the_shared_deadline(
+    failing_connect: list[int],
+) -> None:
+    """A tiny overall budget must cut initialization retries short too.
+
+    Initialization and the lookup now share one deadline (derived from
+    `timeout`), so a small `timeout` must bound the initialization attempts
+    as well -- not just the lookup attempts.
+    """
+    budget = 0.05
+
+    started = time.monotonic()
+    result = tools.virustotal_ip_check("203.0.113.42", timeout=budget)
+    elapsed = time.monotonic() - started
+
+    assert result is None
+    assert len(failing_connect) < tools._MAX_RETRIES, "budget was ignored; all retries ran"
+    assert elapsed < (tools._MAX_RETRIES - 1) * tools._RETRY_DELAY_SECONDS
+
+
+def test_successful_initialization_leaves_the_full_budget_for_the_lookup(
+    failing_lookup: list[int],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Initialization succeeding on the first try must not eat into the lookup's retries."""
+    monkeypatch.setattr(tools.time, "sleep", lambda _seconds: None)
+
+    result = tools.virustotal_ip_check("203.0.113.42", timeout=30)
+
+    assert result is None
+    assert len(failing_lookup) == tools._MAX_RETRIES

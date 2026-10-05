@@ -27,6 +27,50 @@ class VirusTotalAPIError(Exception):
     pass
 
 
+def _connect_virustotal_client() -> None:
+    """Perform the (mocked) client handshake.
+
+    Isolated from `_initialize_virustotal_client` so tests can make this step
+    fail without faking the whole retry loop.
+    """
+    # Mock initialization: no-op in this implementation
+    return None
+
+
+def _initialize_virustotal_client(deadline: float) -> bool:
+    """Initialize VirusTotal API client with retry logic.
+
+    Args:
+        deadline: `time.monotonic()` timestamp by which initialization must
+            succeed. Shared with the caller's overall request deadline so
+            initialization time comes out of the same budget rather than a
+            separate one.
+
+    Returns:
+        True if initialization successful, False if timed out or failed.
+    """
+    for attempt in range(1, _MAX_RETRIES + 1):
+        if time.monotonic() >= deadline:
+            logger.error(
+                "[VirusTotal API] Client initialization timed out (%d/%d attempts)",
+                attempt - 1, _MAX_RETRIES,
+            )
+            return False
+
+        try:
+            logger.info("[VirusTotal API] Initializing client (attempt %d/%d)", attempt, _MAX_RETRIES)
+            _connect_virustotal_client()
+            return True
+        except Exception as e:
+            logger.warning("[VirusTotal API] Client initialization attempt %d failed: %s", attempt, str(e))
+            if attempt >= _MAX_RETRIES:
+                logger.error("[VirusTotal API] Client initialization failed after %d retries", _MAX_RETRIES)
+                return False
+            time.sleep(min(_RETRY_DELAY_SECONDS, max(0.0, deadline - time.monotonic())))
+
+    return False
+
+
 def virustotal_ip_check(ip: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> Optional[ReputationResult]:
     """Mock VirusTotal API - returns a reputation score for an IP address.
 
@@ -52,6 +96,12 @@ def virustotal_ip_check(ip: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> O
         raise ValueError("timeout must be positive")
 
     deadline = time.monotonic() + timeout
+
+    # Initialization shares the same deadline as the lookup below, so the
+    # whole call -- init plus retries -- stays inside `timeout`.
+    if not _initialize_virustotal_client(deadline):
+        logger.error("[VirusTotal API] Failed to initialize client for IP check: %s", ip)
+        return None
 
     for attempt in range(1, _MAX_RETRIES + 1):
         if time.monotonic() >= deadline:
