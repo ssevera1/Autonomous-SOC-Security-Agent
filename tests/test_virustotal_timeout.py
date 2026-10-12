@@ -171,6 +171,30 @@ def test_client_initialization_respects_the_shared_deadline(
     assert elapsed < (tools._MAX_RETRIES - 1) * tools._RETRY_DELAY_SECONDS
 
 
+def test_client_initialization_timeout_logs_distinctly_from_failure(
+    failing_connect: list[int],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Running out of the shared deadline during init logs a different message
+    than init failing outright with budget to spare (see
+    `test_client_initialization_retries_on_failure`).
+    """
+    caplog.set_level(logging.ERROR, logger="threat_hunter.tools")
+    budget = 0.05
+
+    result = tools.virustotal_ip_check("203.0.113.42", timeout=budget)
+
+    assert result is None
+    assert any(
+        "Client initialization timed out for IP check" in r.getMessage()
+        for r in caplog.records
+    )
+    assert not any(
+        "Failed to initialize client for IP check" in r.getMessage()
+        for r in caplog.records
+    )
+
+
 def test_successful_initialization_leaves_the_full_budget_for_the_lookup(
     failing_lookup: list[int],
     monkeypatch: pytest.MonkeyPatch,
