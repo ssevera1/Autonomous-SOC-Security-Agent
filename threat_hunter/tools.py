@@ -100,7 +100,10 @@ def virustotal_ip_check(ip: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> O
     # Initialization shares the same deadline as the lookup below, so the
     # whole call -- init plus retries -- stays inside `timeout`.
     if not _initialize_virustotal_client(deadline):
-        logger.error("[VirusTotal API] Failed to initialize client for IP check: %s", ip)
+        if time.monotonic() >= deadline:
+            logger.error("[VirusTotal API] Client initialization timed out for IP check: %s", ip)
+        else:
+            logger.error("[VirusTotal API] Failed to initialize client for IP check: %s", ip)
         return None
 
     for attempt in range(1, _MAX_RETRIES + 1):
