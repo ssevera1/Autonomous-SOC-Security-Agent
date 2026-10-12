@@ -27,6 +27,11 @@ class VirusTotalAPIError(Exception):
     pass
 
 
+class RequestTimeoutError(Exception):
+    """Raised when request exceeds timeout budget."""
+    pass
+
+
 def _connect_virustotal_client() -> None:
     """Perform the (mocked) client handshake.
 
@@ -48,6 +53,9 @@ def _initialize_virustotal_client(deadline: float) -> bool:
 
     Returns:
         True if initialization successful, False if timed out or failed.
+
+    Raises:
+        RequestTimeoutError: If deadline is exceeded.
     """
     for attempt in range(1, _MAX_RETRIES + 1):
         if time.monotonic() >= deadline:
@@ -55,12 +63,14 @@ def _initialize_virustotal_client(deadline: float) -> bool:
                 "[VirusTotal API] Client initialization timed out (%d/%d attempts)",
                 attempt - 1, _MAX_RETRIES,
             )
-            return False
+            raise RequestTimeoutError("Client initialization exceeded deadline")
 
         try:
             logger.info("[VirusTotal API] Initializing client (attempt %d/%d)", attempt, _MAX_RETRIES)
             _connect_virustotal_client()
             return True
+        except RequestTimeoutError:
+            raise
         except Exception as e:
             logger.warning("[VirusTotal API] Client initialization attempt %d failed: %s", attempt, str(e))
             if attempt >= _MAX_RETRIES:
@@ -99,8 +109,12 @@ def virustotal_ip_check(ip: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> O
 
     # Initialization shares the same deadline as the lookup below, so the
     # whole call -- init plus retries -- stays inside `timeout`.
-    if not _initialize_virustotal_client(deadline):
-        logger.error("[VirusTotal API] Failed to initialize client for IP check: %s", ip)
+    try:
+        if not _initialize_virustotal_client(deadline):
+            logger.error("[VirusTotal API] Failed to initialize client for IP check: %s", ip)
+            return None
+    except RequestTimeoutError:
+        logger.error("[VirusTotal API] Client initialization timed out for IP check: %s", ip)
         return None
 
     for attempt in range(1, _MAX_RETRIES + 1):
