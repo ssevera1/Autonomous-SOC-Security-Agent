@@ -3,9 +3,6 @@
 import ipaddress
 import logging
 import re
-import signal
-from contextlib import contextmanager
-from typing import Any, Callable, TypeVar
 
 from .log_ingestor import LogIngestor
 from .models import Alert, AnalysisResult, ReputationResult, Severity, Verdict
@@ -20,27 +17,6 @@ _SEPARATOR = "=" * 60
 _SEVERITY_ORDER = {Severity.LOW: 0, Severity.MEDIUM: 1, Severity.HIGH: 2, Severity.CRITICAL: 3}
 
 _DEFAULT_TIMEOUT = 30  # seconds
-T = TypeVar('T')
-
-
-class TimeoutError(Exception):
-    """Raised when an operation exceeds its timeout."""
-    pass
-
-
-@contextmanager
-def timeout_handler(seconds: int) -> Any:
-    """Context manager to enforce timeout on a code block."""
-    def signal_handler(signum: int, frame: Any) -> None:
-        raise TimeoutError(f"Operation timed out after {seconds} seconds")
-
-    old_handler = signal.signal(signal.SIGALRM, signal_handler)
-    signal.alarm(seconds)
-    try:
-        yield
-    finally:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old_handler)
 
 
 class ThreatHunterAgent:
@@ -75,12 +51,7 @@ class ThreatHunterAgent:
         """Step 2: Check IP reputation via threat intelligence."""
         print(f"  [DECIDE]   Checking IP reputation via VirusTotal...")
         try:
-            with timeout_handler(self.timeout):
-                result = virustotal_ip_check(ip)
-        except TimeoutError as e:
-            print(f"  [ANALYZE]  VirusTotal check timed out -- cannot determine verdict.")
-            logger.error(f"Timeout checking reputation for IP {ip}: {e}")
-            return None
+            result = virustotal_ip_check(ip, timeout=self.timeout)
         except Exception as e:
             print(f"  [ANALYZE]  VirusTotal check failed -- cannot determine verdict.")
             logger.error(f"Error checking reputation for IP {ip}: {e}", exc_info=True)
@@ -118,8 +89,7 @@ class ThreatHunterAgent:
         print(_SEPARATOR)
 
         try:
-            with timeout_handler(self.timeout * 10):  # Give overall operation more time
-                alerts = self.ingestor.ingest()
+            alerts = self.ingestor.ingest()
         except TimeoutError as e:
             logger.error(f"Timeout loading alerts: {e}")
             print(f"  ERROR: Failed to load alerts within timeout")
@@ -244,6 +214,9 @@ class ThreatHunterAgent:
             "skipped": skipped_count,
             "error": error_count,
         }
+        # Render the counts into the message so they survive the plain-text formatter
+        # configured in main.py; `extra` only attaches attributes to the LogRecord and
+        # is picked up solely by structured (e.g. JSON) formatters.
         logger.info(
             "action_counts: " + ", ".join(f"{name}={count}" for name, count in action_counts.items()),
             extra=action_counts,
