@@ -16,14 +16,17 @@ _SEPARATOR = "=" * 60
 
 _SEVERITY_ORDER = {Severity.LOW: 0, Severity.MEDIUM: 1, Severity.HIGH: 2, Severity.CRITICAL: 3}
 
+_DEFAULT_TIMEOUT = 30  # seconds
+
 
 class ThreatHunterAgent:
     """Autonomous agent that ingests alerts, reasons about threats, and
     recommends remediation with human-in-the-loop approval."""
 
-    def __init__(self, log_file: str, min_severity: Severity = Severity.LOW) -> None:
+    def __init__(self, log_file: str, min_severity: Severity = Severity.LOW, timeout: int = _DEFAULT_TIMEOUT) -> None:
         self.ingestor = LogIngestor(log_file)
         self.min_severity = min_severity
+        self.timeout = timeout
         self.results: list[AnalysisResult] = []
 
     # ----- reasoning steps -----
@@ -47,7 +50,13 @@ class ThreatHunterAgent:
     def _step_check_reputation(self, ip: str) -> ReputationResult | None:
         """Step 2: Check IP reputation via threat intelligence."""
         print(f"  [DECIDE]   Checking IP reputation via VirusTotal...")
-        result = virustotal_ip_check(ip)
+        try:
+            result = virustotal_ip_check(ip, timeout=self.timeout)
+        except Exception as e:
+            print(f"  [ANALYZE]  VirusTotal check failed -- cannot determine verdict.")
+            logger.error(f"Error checking reputation for IP {ip}: {e}", exc_info=True)
+            return None
+
         if result is None:
             print(f"  [ANALYZE]  VirusTotal check failed after retries -- cannot determine verdict.")
             return None
@@ -79,7 +88,21 @@ class ThreatHunterAgent:
             print(f"  Minimum severity threshold: {self.min_severity.value}")
         print(_SEPARATOR)
 
-        alerts = self.ingestor.ingest()
+        try:
+            alerts = self.ingestor.ingest()
+        except TimeoutError as e:
+            logger.error(f"Timeout loading alerts: {e}")
+            print(f"  ERROR: Failed to load alerts within timeout")
+            print(_SEPARATOR)
+            print()
+            return self.results
+        except Exception as e:
+            logger.error(f"Error loading alerts: {e}", exc_info=True)
+            print(f"  ERROR: Failed to load alerts")
+            print(_SEPARATOR)
+            print()
+            return self.results
+
         print(f"\n  Loaded {len(alerts)} alerts. Beginning reasoning loop...\n")
 
         for alert in alerts:
