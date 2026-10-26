@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class Severity(str, Enum):
@@ -27,20 +27,6 @@ class Alert(BaseModel):
     severity: Severity
     source: str
     message: str
-
-    @field_validator('timestamp', mode='before')
-    @classmethod
-    def validate_timestamp(cls, v):
-        if v is None:
-            raise ValueError('timestamp cannot be null')
-        if isinstance(v, datetime):
-            return v
-        if isinstance(v, str):
-            try:
-                return datetime.fromisoformat(v)
-            except (ValueError, TypeError) as e:
-                raise ValueError(f'timestamp must be parseable as ISO 8601 datetime: {e}')
-        raise ValueError('timestamp must be a datetime object or ISO 8601 string')
 
 
 class ReputationResult(BaseModel):
