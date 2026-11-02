@@ -145,3 +145,81 @@ def virustotal_ip_check(ip: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> O
             time.sleep(min(_RETRY_DELAY_SECONDS, max(0.0, deadline - time.monotonic())))
 
     return None
+
+
+def whois_lookup(domain: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> Optional[str]:
+    """Mock WHOIS lookup - returns registrar information for a domain.
+
+    Args:
+        domain: Domain name to look up
+        timeout: Total wall-clock budget in seconds for the lookup
+            (default: 5). Must be positive.
+
+    Returns:
+        Registrar string if successful, None if timed out or failed
+    """
+    if timeout <= 0:
+        raise ValueError("timeout must be positive")
+
+    deadline = time.monotonic() + timeout
+
+    for attempt in range(1, _MAX_RETRIES + 1):
+        if time.monotonic() >= deadline:
+            logger.error(
+                "[WHOIS] Timed out looking up domain %s after %.3fs budget (%d/%d attempts made)",
+                domain, timeout, attempt - 1, _MAX_RETRIES,
+            )
+            return None
+
+        try:
+            logger.info("[WHOIS] Looking up domain: %s (attempt %d/%d)", domain, attempt, _MAX_RETRIES)
+            registrar = f"Mock Registrar for {domain}"
+            logger.info("[WHOIS] Result: %s", registrar)
+            return registrar
+        except Exception as e:
+            logger.warning("[WHOIS] Attempt %d failed: %s", attempt, str(e))
+            if attempt >= _MAX_RETRIES:
+                logger.error("[WHOIS] Failed to look up domain %s after %d retries", domain, _MAX_RETRIES)
+                return None
+            time.sleep(min(_RETRY_DELAY_SECONDS, max(0.0, deadline - time.monotonic())))
+
+    return None
+
+
+def geoip_lookup(ip: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> Optional[str]:
+    """Mock GeoIP lookup - returns geographic location for an IP address.
+
+    Args:
+        ip: IP address to look up
+        timeout: Total wall-clock budget in seconds for the lookup
+            (default: 5). Must be positive.
+
+    Returns:
+        Location string if successful, None if timed out or failed
+    """
+    if timeout <= 0:
+        raise ValueError("timeout must be positive")
+
+    deadline = time.monotonic() + timeout
+
+    for attempt in range(1, _MAX_RETRIES + 1):
+        if time.monotonic() >= deadline:
+            logger.error(
+                "[GeoIP] Timed out looking up IP %s after %.3fs budget (%d/%d attempts made)",
+                ip, timeout, attempt - 1, _MAX_RETRIES,
+            )
+            return None
+
+        try:
+            logger.info("[GeoIP] Looking up IP: %s (attempt %d/%d)", ip, attempt, _MAX_RETRIES)
+            location = f"Mock Location for {ip}"
+            logger.info("[GeoIP] Result: %s", location)
+            return location
+        except Exception as e:
+            logger.warning("[GeoIP] Attempt %d failed: %s", attempt, str(e))
+            if attempt >= _MAX_RETRIES:
+                logger.error("[GeoIP] Failed to look up IP %s after %d retries", ip, _MAX_RETRIES)
+                return None
+            time.sleep(min(_RETRY_DELAY_SECONDS, max(0.0, deadline - time.monotonic())))
+
+    return None
