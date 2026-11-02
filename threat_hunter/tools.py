@@ -147,16 +147,31 @@ def virustotal_ip_check(ip: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> O
     return None
 
 
+def _lookup_whois_registrar(domain: str) -> str:
+    """Perform the (mocked) WHOIS lookup.
+
+    Isolated from `whois_lookup` so tests can make this step fail without
+    faking the whole retry loop.
+    """
+    return f"Mock Registrar for {domain}"
+
+
 def whois_lookup(domain: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> Optional[str]:
     """Mock WHOIS lookup - returns registrar information for a domain.
 
+    This is a mock: the lookup itself is pure computation, so `timeout` bounds
+    the whole call rather than a socket read. Retry backoff is what actually
+    consumes the budget today -- a caller passing a short timeout gets fewer
+    retries instead of the full `_MAX_RETRIES * _RETRY_DELAY_SECONDS` wait.
+
     Args:
         domain: Domain name to look up
-        timeout: Total wall-clock budget in seconds for the lookup
-            (default: 5). Must be positive.
+        timeout: Total wall-clock budget in seconds for the lookup, including
+            retry backoff (default: 5). Must be positive.
 
     Returns:
-        Registrar string if successful, None if timed out or failed
+        Registrar string if successful, None if the retries or the time
+        budget are exhausted
     """
     if timeout <= 0:
         raise ValueError("timeout must be positive")
@@ -173,7 +188,7 @@ def whois_lookup(domain: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> Opti
 
         try:
             logger.info("[WHOIS] Looking up domain: %s (attempt %d/%d)", domain, attempt, _MAX_RETRIES)
-            registrar = f"Mock Registrar for {domain}"
+            registrar = _lookup_whois_registrar(domain)
             logger.info("[WHOIS] Result: %s", registrar)
             return registrar
         except Exception as e:
@@ -186,16 +201,31 @@ def whois_lookup(domain: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> Opti
     return None
 
 
+def _lookup_geoip_location(ip: str) -> str:
+    """Perform the (mocked) GeoIP lookup.
+
+    Isolated from `geoip_lookup` so tests can make this step fail without
+    faking the whole retry loop.
+    """
+    return f"Mock Location for {ip}"
+
+
 def geoip_lookup(ip: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> Optional[str]:
     """Mock GeoIP lookup - returns geographic location for an IP address.
 
+    This is a mock: the lookup itself is pure computation, so `timeout` bounds
+    the whole call rather than a socket read. Retry backoff is what actually
+    consumes the budget today -- a caller passing a short timeout gets fewer
+    retries instead of the full `_MAX_RETRIES * _RETRY_DELAY_SECONDS` wait.
+
     Args:
         ip: IP address to look up
-        timeout: Total wall-clock budget in seconds for the lookup
-            (default: 5). Must be positive.
+        timeout: Total wall-clock budget in seconds for the lookup, including
+            retry backoff (default: 5). Must be positive.
 
     Returns:
-        Location string if successful, None if timed out or failed
+        Location string if successful, None if the retries or the time
+        budget are exhausted
     """
     if timeout <= 0:
         raise ValueError("timeout must be positive")
@@ -212,7 +242,7 @@ def geoip_lookup(ip: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> Optional
 
         try:
             logger.info("[GeoIP] Looking up IP: %s (attempt %d/%d)", ip, attempt, _MAX_RETRIES)
-            location = f"Mock Location for {ip}"
+            location = _lookup_geoip_location(ip)
             logger.info("[GeoIP] Result: %s", location)
             return location
         except Exception as e:
