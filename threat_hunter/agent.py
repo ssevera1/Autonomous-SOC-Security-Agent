@@ -3,6 +3,9 @@
 import ipaddress
 import logging
 import re
+from typing import Optional
+
+from anthropic import Anthropic, APITimeoutError
 
 from .log_ingestor import LogIngestor
 from .models import Alert, AnalysisResult, ReputationResult, Severity, Verdict
@@ -28,6 +31,7 @@ class ThreatHunterAgent:
         self.min_severity = min_severity
         self.timeout = timeout
         self.results: list[AnalysisResult] = []
+        self.client = Anthropic(timeout=timeout)
 
     # ----- reasoning steps -----
 
