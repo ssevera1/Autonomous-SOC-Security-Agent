@@ -156,3 +156,49 @@ def test_geoip_retry_backoff_never_sleeps_past_the_deadline(
 
     assert slept, "expected at least one backoff"
     assert all(0.0 <= s <= budget for s in slept), f"backoff overshot the budget: {slept}"
+
+
+def test_whois_timeout_error_is_handled_by_the_generic_retry_path(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A `TimeoutError` from the lookup seam is just another exception here.
+
+    `TimeoutError` is a subclass of `OSError`/`Exception`, so a dedicated
+    `except TimeoutError` branch above the generic `except Exception` is
+    unreachable-in-effect duplication, not distinct behavior, and it also
+    diverges from the single-`except Exception` pattern used by
+    `virustotal_ip_check`/`_initialize_virustotal_client`. This pins the
+    single-handler behavior: attempt failures are logged as "failed", not
+    "timed out" (that phrase is reserved for the deadline-exceeded path).
+    """
+    monkeypatch.setattr(tools.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(
+        tools, "_lookup_whois_registrar",
+        lambda domain: (_ for _ in ()).throw(TimeoutError("simulated socket timeout")),
+    )
+    caplog.set_level(logging.WARNING, logger="threat_hunter.tools")
+
+    result = tools.whois_lookup("example.com", timeout=30)
+
+    assert result is None
+    assert any("Attempt" in r.getMessage() and "failed" in r.getMessage() for r in caplog.records)
+    assert not any("timed out" in r.getMessage() for r in caplog.records)
+
+
+def test_geoip_timeout_error_is_handled_by_the_generic_retry_path(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setattr(tools.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(
+        tools, "_lookup_geoip_location",
+        lambda ip: (_ for _ in ()).throw(TimeoutError("simulated socket timeout")),
+    )
+    caplog.set_level(logging.WARNING, logger="threat_hunter.tools")
+
+    result = tools.geoip_lookup("8.8.8.8", timeout=30)
+
+    assert result is None
+    assert any("Attempt" in r.getMessage() and "failed" in r.getMessage() for r in caplog.records)
+    assert not any("timed out" in r.getMessage() for r in caplog.records)

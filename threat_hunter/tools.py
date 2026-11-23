@@ -191,12 +191,6 @@ def whois_lookup(domain: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> Opti
             registrar = _lookup_whois_registrar(domain)
             logger.info("[WHOIS] Result: %s", registrar)
             return registrar
-        except TimeoutError as e:
-            logger.warning("[WHOIS] Attempt %d timed out: %s", attempt, str(e))
-            if attempt >= _MAX_RETRIES:
-                logger.error("[WHOIS] Failed to look up domain %s after %d retries", domain, _MAX_RETRIES)
-                return None
-            time.sleep(min(_RETRY_DELAY_SECONDS, max(0.0, deadline - time.monotonic())))
         except Exception as e:
             logger.warning("[WHOIS] Attempt %d failed: %s", attempt, str(e))
             if attempt >= _MAX_RETRIES:
@@ -251,12 +245,6 @@ def geoip_lookup(ip: str, timeout: float = _REQUEST_TIMEOUT_SECONDS) -> Optional
             location = _lookup_geoip_location(ip)
             logger.info("[GeoIP] Result: %s", location)
             return location
-        except TimeoutError as e:
-            logger.warning("[GeoIP] Attempt %d timed out: %s", attempt, str(e))
-            if attempt >= _MAX_RETRIES:
-                logger.error("[GeoIP] Failed to look up IP %s after %d retries", ip, _MAX_RETRIES)
-                return None
-            time.sleep(min(_RETRY_DELAY_SECONDS, max(0.0, deadline - time.monotonic())))
         except Exception as e:
             logger.warning("[GeoIP] Attempt %d failed: %s", attempt, str(e))
             if attempt >= _MAX_RETRIES:
